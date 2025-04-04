@@ -32,8 +32,6 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-pub const Q: u32 = 0x7fffd801;
-
 pub const CHUNK: usize = 4;
 
 // std Simd is a struct, not a trait.
@@ -228,7 +226,7 @@ pub fn mul_accum_vert_noreduce(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]) {
 }
 
 #[inline(never)]
-pub fn mul_accum_vert_division(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]) {
+pub fn mul_accum_vert_division<const Q: u32>(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]) {
     for (db_row, acc_row) in zip(db, acc) {
         for i in 0..u32x8::DIM {
             let tmp = u64::from(db_row[i]) * u64::from(query[i]) + u64::from(acc_row[i]);
@@ -238,7 +236,7 @@ pub fn mul_accum_vert_division(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]) {
 }
 
 #[inline(never)]
-pub fn mul_accum_vert_barrett(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]) {
+pub fn mul_accum_vert_barrett<const Q: u32>(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]) {
     let p_barrett = ((1u64 << 62) / Q as u64) as u32;
     for (db_row, acc_row) in zip(db, acc) {
         for i in 0..u32x8::DIM {
@@ -258,7 +256,7 @@ pub fn mul_accum_vert_barrett(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]) {
 
 #[cfg(target_feature = "avx2")]
 #[inline(never)]
-pub fn mul_accum_vert_barrett_asm(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]) {
+pub fn mul_accum_vert_barrett_asm<const Q: u32>(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]) {
     assert_eq!(
         db.len() % CHUNK,
         0,
@@ -390,7 +388,11 @@ pub fn mul_accum_vert_barrett_asm(db: &[u32x8], query: &u32x8, acc: &mut [u32x8]
 
 #[cfg(target_feature = "avx512f")]
 #[inline(never)]
-pub fn mul_accum_vert_barrett_avx512(db: &[u32x16], query: &u32x16, acc: &mut [u32x16]) {
+pub fn mul_accum_vert_barrett_avx512<const Q: u32>(
+    db: &[u32x16],
+    query: &u32x16,
+    acc: &mut [u32x16],
+) {
     unsafe {
         let p_barrett = _mm512_set1_epi64(((1u64 << 62) / Q as u64) as i64);
         let big_q = _mm512_set1_epi32(Q as i32);
@@ -425,7 +427,7 @@ pub fn mul_accum_vert_barrett_avx512(db: &[u32x16], query: &u32x16, acc: &mut [u
 }
 
 #[inline(never)]
-pub fn mul_accum_hv_division(db: &[u32x16], query: &[u32x16; 4], acc: &mut [u32x16]) {
+pub fn mul_accum_hv_division<const Q: u32>(db: &[u32x16], query: &[u32x16; 4], acc: &mut [u32x16]) {
     assert_eq!(
         db.len() % CHUNK,
         0,
@@ -579,7 +581,7 @@ pub fn mul_accum_hv_barrett_31<'a, J, const Q: u32>(
 
 #[cfg(target_feature = "avx2")]
 #[inline(never)]
-pub fn mul_accum_hv_barrett_avx2_31(db: &[u32x8], query: &[u32x8; 4], acc: &mut [u32x8]) {
+pub fn mul_accum_hv_barrett_avx2_31<const Q: u32>(db: &[u32x8], query: &[u32x8; 4], acc: &mut [u32x8]) {
     assert_eq!(db.len() % CHUNK, 0, "database length should be a multiple of {CHUNK}");
     assert_eq!(db.len() / CHUNK, acc.len());
     assert_eq!(CHUNK, 4);
@@ -805,7 +807,7 @@ pub fn mul_accum_horiz_noreduce_asm(db: &[u32x8], query: &u32x8, acc: &mut [u32]
 }
 
 #[inline(never)]
-pub fn mul_accum_horiz_division(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
+pub fn mul_accum_horiz_division<const Q: u32>(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
     for (db_row, row_acc) in zip(db, acc) {
         for i in 0..u32x8::DIM {
             let tmp = u64::from(db_row[i]) * u64::from(query[i]) + u64::from(*row_acc);
@@ -815,7 +817,7 @@ pub fn mul_accum_horiz_division(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
 }
 
 #[inline(never)]
-pub fn mul_accum_horiz_barrett(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
+pub fn mul_accum_horiz_barrett<const Q: u32>(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
     let p_barrett = ((1u64 << 62) / Q as u64) as u32;
     for (db_row, row_acc) in zip(db, acc) {
         for i in 0..u32x8::DIM {
@@ -834,7 +836,7 @@ pub fn mul_accum_horiz_barrett(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
 }
 
 #[inline(never)]
-pub fn mul_accum_horiz_deferred(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
+pub fn mul_accum_horiz_deferred<const Q: u32>(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
     let p_barrett = ((1u128 << 65) / Q as u128) as u64;
     for (db_row, row_acc) in zip(db, acc) {
         let tmp = u64::from(db_row[0]) * u64::from(query[0])
@@ -869,7 +871,7 @@ pub fn mul_accum_horiz_deferred(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
 
 #[cfg(target_feature = "avx2")]
 #[inline(never)]
-pub fn mul_accum_horiz_deferred_avx2(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
+pub fn mul_accum_horiz_deferred_avx2<const Q: u32>(db: &[u32x8], query: &u32x8, acc: &mut [u32]) {
     unsafe {
         let p_barrett = ((1u128 << 65) / Q as u128) as u64;
         let zero = _mm256_setzero_si256();
@@ -911,6 +913,8 @@ mod tests {
 
     use super::*;
 
+    pub const Q: u32 = 0x7fffd801;
+
     fn test_mul_accum_vert<T: Simd<Item = u32>, F: Fn(&[T], &T, &mut [T])>(mul_accum_fn: F) {
         let mut rng = thread_rng();
         let db = [
@@ -944,24 +948,24 @@ mod tests {
 
     #[test]
     fn test_mul_accum_vert_division() {
-        test_mul_accum_vert(mul_accum_vert_division);
+        test_mul_accum_vert(mul_accum_vert_division::<Q>);
     }
 
     #[test]
     fn test_mul_accum_vert_barrett() {
-        test_mul_accum_vert(mul_accum_vert_barrett);
+        test_mul_accum_vert(mul_accum_vert_barrett::<Q>);
     }
 
     #[cfg(target_feature = "avx2")]
     #[test]
     fn test_mul_accum_vert_barrett_asm() {
-        test_mul_accum_vert(mul_accum_vert_barrett_asm);
+        test_mul_accum_vert(mul_accum_vert_barrett_asm::<Q>);
     }
 
     #[cfg(target_feature = "avx512f")]
     #[test]
     fn test_mul_accum_vert_barrett_avx512() {
-        test_mul_accum_vert(mul_accum_vert_barrett_avx512);
+        test_mul_accum_vert(mul_accum_vert_barrett_avx512::<Q>);
     }
 
     /*
@@ -1000,13 +1004,13 @@ mod tests {
 
     #[test]
     fn test_mul_accum_hv_division() {
-        test_mul_accum_hv(mul_accum_hv_division);
+        test_mul_accum_hv(mul_accum_hv_division::<Q>);
     }
 
     #[cfg(target_feature = "avx512ifma")]
     #[test]
     fn test_mul_accum_hv_barrett_31_avx512() {
-        test_mul_accum_hv(mul_accum_hv_barrett_31_avx512);
+        test_mul_accum_hv(mul_accum_hv_barrett_31_avx512::<Q>);
     }
     */
 
@@ -1042,17 +1046,17 @@ mod tests {
 
     #[test]
     fn test_mul_accum_horiz_division() {
-        test_mul_accum_horiz(mul_accum_horiz_division);
+        test_mul_accum_horiz(mul_accum_horiz_division::<Q>);
     }
 
     #[test]
     fn test_mul_accum_horiz_barrett() {
-        test_mul_accum_horiz(mul_accum_horiz_barrett);
+        test_mul_accum_horiz(mul_accum_horiz_barrett::<Q>);
     }
 
     #[test]
     fn test_mul_accum_horiz_deferred() {
-        test_mul_accum_horiz(mul_accum_horiz_deferred);
+        test_mul_accum_horiz(mul_accum_horiz_deferred::<Q>);
     }
 
     #[cfg(target_feature = "avx2")]
