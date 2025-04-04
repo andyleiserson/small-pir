@@ -5,7 +5,7 @@ use concrete_ntt::{prime32::Plan as Prime32Plan, prime64::Plan as Prime64Plan};
 use delegate::delegate;
 use funty::Integral;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
-pub use residue_ntt::ResidueNtt;
+pub use residue_ntt::{Basis as ResidueNttBasis, Q56Basis, Q62Basis, ResidueNtt};
 
 use crate::{field::Field, lwe::LwePrivate, pir::PirBackend, Decompose, InnerProduct};
 

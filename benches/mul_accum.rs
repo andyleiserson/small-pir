@@ -1,6 +1,7 @@
 use std::{array, iter::repeat_with, mem::size_of};
 
 use criterion::{measurement::Measurement, BatchSize, BenchmarkGroup, Criterion, Throughput};
+use rand::{thread_rng, Rng};
 #[cfg(target_arch = "aarch64")]
 use small_pir::math::mul_accum_horiz_noreduce_asm;
 #[cfg(target_feature = "avx512ifma")]
@@ -19,7 +20,6 @@ use small_pir::{
         mul_accum_vert_barrett, mul_accum_vert_division, mul_accum_vert_noreduce, u32x8, Simd, Q,
     },
 };
-use rand::{thread_rng, Rng};
 
 const N_SMALL: usize = 16 * 1024 / size_of::<u32>();
 const N_MEDIUM: usize = 1024 * 1024 / size_of::<u32>();

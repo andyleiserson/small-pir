@@ -22,7 +22,7 @@ use crate::{
         backend::{Pir31, Pir62Crt, PirGeneric},
         Pir, Seed,
     },
-    poly::{Ntt, NttTrait, Poly, ResidueNtt},
+    poly::{Ntt, NttTrait, Poly, Q56Basis, Q62Basis, ResidueNtt, ResidueNttBasis},
     Decompose, InnerProduct, OneMinus,
 };
 
@@ -154,7 +154,7 @@ mod sealed {
 pub(crate) use sealed::LwePrivate;
 
 macro_rules! lwe_impl {
-    ($ty:ident, $name:literal, $degree:expr, $p_modulus:expr, $q_modulus:expr, $store:ty, $op_store:ty, $plan:ty, $backend:ty, $ntt:ty) => {
+    ($ty:ident, $name:literal, $degree:expr, $q_modulus:expr, $p_modulus:expr, $store:ty, $op_store:ty, $plan:ty, $backend:ty, $ntt:ty $(,)?) => {
         #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
         pub struct $ty;
 
@@ -198,21 +198,25 @@ macro_rules! lwe_impl {
         }
     };
 
-    ($ty:ident, $name:literal, 32, $q_modulus:expr, $p_modulus:expr, PirGeneric) => {
-        lwe_impl!($ty, $name, 1024, $p_modulus, $q_modulus, u32, u64, Prime32Plan, PirGeneric<$ty>, Ntt<$ty>);
+    ($ty:ident, $name:literal, 32, PirGeneric, $q_modulus:expr, $p_modulus:expr) => {
+        lwe_impl!($ty, $name, 1024, $q_modulus, $p_modulus, u32, u64, Prime32Plan, PirGeneric<$ty>, Ntt<$ty>);
     };
 
-    ($ty:ident, $name:literal, 32, $q_modulus:expr, $p_modulus:expr, Pir31) => {
-        lwe_impl!($ty, $name, 1024, $p_modulus, $q_modulus, u32, u64, Prime32Plan, Pir31<$ty, $q_modulus>, Ntt<$ty>);
+    ($ty:ident, $name:literal, 32, Pir31, $q_modulus:expr, $p_modulus:expr) => {
+        lwe_impl!($ty, $name, 1024, $q_modulus, $p_modulus, u32, u64, Prime32Plan, Pir31<$ty, $q_modulus>, Ntt<$ty>);
     };
 
-    // TODO: 65!? This is awful.
-    ($ty:ident, $name:literal, 65, $q_modulus:expr, $p_modulus:expr, PirGeneric) => {
-        lwe_impl!($ty, $name, 2048, $p_modulus, $q_modulus, u64, u128, Prime64Plan, PirGeneric<$ty>, Ntt<$ty>);
+    ($ty:ident, $name:literal, 64, PirGeneric, $q_modulus:expr, $p_modulus:expr) => {
+        lwe_impl!($ty, $name, 2048, $q_modulus, $p_modulus, u64, u128, Prime64Plan, PirGeneric<$ty>, Ntt<$ty>);
     };
 
-    ($ty:ident, $name:literal, 64, $q_factor_a:expr, $q_factor_b:expr, $p_modulus:expr) => {
-        lwe_impl!($ty, $name, 2048, $p_modulus, $q_factor_a as u64 * $q_factor_b as u64, u64, u128, Prime64Plan, Pir62Crt<$ty, $q_factor_a, $q_factor_b>, ResidueNtt<$ty>);
+    ($ty:ident, $name:literal, 64, Pir62Crt, $ntt_basis:ty, $p_modulus:expr) => {
+        lwe_impl!(
+            $ty, $name, 2048, <$ntt_basis>::Q0 as u64 * <$ntt_basis>::Q1 as u64, $p_modulus,
+            u64, u128, Prime64Plan,
+            Pir62Crt<$ty, $ntt_basis, {<$ntt_basis>::Q0}, {<$ntt_basis>::Q1}>,
+            ResidueNtt<$ty, $ntt_basis>,
+        );
     };
 }
 
@@ -223,60 +227,51 @@ pub const Q30: u32 = 0x3fff_7801;
 pub const Q31: u32 = 0x7fff_d801;
 pub const Q32: u32 = 0xffff_d801;
 
-pub const Q56_F0: u32 = 0xfff_0001;
-pub const Q56_F1: u32 = 0xffe_e001;
+lwe_impl!(Lwe1024Q32P8, "1024q32p8", 32, PirGeneric, Q32, 256);
 
-pub const Q62_F0: u32 = 0x7ffe_9001;
-pub const Q62_F1: u32 = 0x7ffe_6001;
+lwe_impl!(Lwe1024Q31P1, "1024q31p1", 32, Pir31, Q31, 2);
+lwe_impl!(Lwe1024Q31P2, "1024q31p2", 32, Pir31, Q31, 4);
+lwe_impl!(Lwe1024Q31P4, "1024q31p4", 32, Pir31, Q31, 16);
+lwe_impl!(Lwe1024Q31P6, "1024q31p6", 32, Pir31, Q31, 64);
+lwe_impl!(Lwe1024Q31P7, "1024q31p7", 32, Pir31, Q31, 128);
+lwe_impl!(Lwe1024Q31P8, "1024q31p8", 32, Pir31, Q31, 256);
 
-lwe_impl!(Lwe1024Q32P8, "1024q32p8", 32, Q32, 256, PirGeneric);
+lwe_impl!(Lwe1024Q30P1, "1024q30p1", 32, Pir31, Q30, 2);
+lwe_impl!(Lwe1024Q30P2, "1024q30p2", 32, Pir31, Q30, 4);
+lwe_impl!(Lwe1024Q30P4, "1024q30p4", 32, Pir31, Q30, 16);
+lwe_impl!(Lwe1024Q30P6, "1024q30p6", 32, Pir31, Q30, 64);
+lwe_impl!(Lwe1024Q30P8, "1024q30p8", 32, Pir31, Q30, 256);
 
-lwe_impl!(Lwe1024Q31P1, "1024q31p1", 32, Q31, 2, Pir31);
-lwe_impl!(Lwe1024Q31P2, "1024q31p2", 32, Q31, 4, Pir31);
-lwe_impl!(Lwe1024Q31P4, "1024q31p4", 32, Q31, 16, Pir31);
-lwe_impl!(Lwe1024Q31P6, "1024q31p6", 32, Q31, 64, Pir31);
-lwe_impl!(Lwe1024Q31P7, "1024q31p7", 32, Q31, 128, Pir31);
-lwe_impl!(Lwe1024Q31P8, "1024q31p8", 32, Q31, 256, Pir31);
+lwe_impl!(Lwe1024Q14P1, "1024q14p1", 32, Pir31, 0x3001, 2);
+lwe_impl!(Lwe1024Q14P4, "1024q14p4", 32, Pir31, 0x3001, 16);
 
-lwe_impl!(Lwe1024Q30P1, "1024q30p1", 32, Q30, 2, Pir31);
-lwe_impl!(Lwe1024Q30P2, "1024q30p2", 32, Q30, 4, Pir31);
-lwe_impl!(Lwe1024Q30P4, "1024q30p4", 32, Q30, 16, Pir31);
-lwe_impl!(Lwe1024Q30P6, "1024q30p6", 32, Q30, 64, Pir31);
-lwe_impl!(Lwe1024Q30P8, "1024q30p8", 32, Q30, 256, Pir31);
-
-lwe_impl!(Lwe1024Q14P1, "1024q14p1", 32, 0x3001, 2, Pir31);
-lwe_impl!(Lwe1024Q14P4, "1024q14p4", 32, 0x3001, 16, Pir31);
-
-lwe_impl!(Lwe1024Q20P6, "1024q20p6", 32, 0xfd801, 64, Pir31);
+lwe_impl!(Lwe1024Q20P6, "1024q20p6", 32, Pir31, 0xfd801, 64);
 
 pub type Lwe1024 = Lwe1024Q31P4;
 
-lwe_impl!(Lwe2048Q56P1, "2048q56p1", 64, Q56_F0, Q56_F1, 2);
-lwe_impl!(Lwe2048Q56P4, "2048q56p4", 64, Q56_F0, Q56_F1, 16);
-lwe_impl!(Lwe2048Q56P6, "2048q56p6", 64, Q56_F0, Q56_F1, 64);
-lwe_impl!(Lwe2048Q56P8, "2048q56p8", 64, Q56_F0, Q56_F1, 256);
-lwe_impl!(Lwe2048Q56P12, "2048q56p12", 64, Q56_F0, Q56_F1, 4096);
-lwe_impl!(Lwe2048Q56P16, "2048q56p16", 64, Q56_F0, Q56_F1, 65536);
+lwe_impl!(Lwe2048Q56P1, "2048q56p1", 64, Pir62Crt, Q56Basis, 2);
+lwe_impl!(Lwe2048Q56P4, "2048q56p4", 64, Pir62Crt, Q56Basis, 16);
+lwe_impl!(Lwe2048Q56P6, "2048q56p6", 64, Pir62Crt, Q56Basis, 64);
+lwe_impl!(Lwe2048Q56P8, "2048q56p8", 64, Pir62Crt, Q56Basis, 256);
+lwe_impl!(Lwe2048Q56P12, "2048q56p12", 64, Pir62Crt, Q56Basis, 4096);
+lwe_impl!(Lwe2048Q56P16, "2048q56p16", 64, Pir62Crt, Q56Basis, 65536);
 
-lwe_impl!(Lwe2048Q21P1, "2048q21p1", 65, 0x1f6001, 2, PirGeneric);
-lwe_impl!(Lwe2048Q21P4, "2048q21p4", 65, 0x1f6001, 16, PirGeneric);
-lwe_impl!(Lwe2048Q21P6, "2048q21p6", 65, 0x1f6001, 64, PirGeneric);
-lwe_impl!(Lwe2048Q21P8, "2048q21p8", 65, 0x1f6001, 256, PirGeneric);
+lwe_impl!(Lwe2048Q21P1, "2048q21p1", 64, PirGeneric, 0x1f6001, 2);
+lwe_impl!(Lwe2048Q21P4, "2048q21p4", 64, PirGeneric, 0x1f6001, 16);
+lwe_impl!(Lwe2048Q21P6, "2048q21p6", 64, PirGeneric, 0x1f6001, 64);
+lwe_impl!(Lwe2048Q21P8, "2048q21p8", 64, PirGeneric, 0x1f6001, 256);
 
 lwe_impl!(
     Lwe2048Q25P12,
     "2048q25p12",
-    65,
+    64,
+    PirGeneric,
     0x1ff_f001,
-    4096,
-    PirGeneric
+    4096
 );
 
-// TODO: these configs are currently broken because Q56 is hardcoded in `ResidueNtt`.
-// (Could be fixed by resolving that, or by tweaking the macro so Q62 configs use
-// the PirGeneric backend.)
-lwe_impl!(Lwe2048Q62P8, "2048q62p8", 64, Q62_F0, Q62_F1, 256);
-lwe_impl!(Lwe2048Q62P16, "2048q62p16", 64, Q62_F0, Q62_F1, 65536);
+lwe_impl!(Lwe2048Q62P8, "2048q62p8", 64, Pir62Crt, Q62Basis, 256);
+lwe_impl!(Lwe2048Q62P16, "2048q62p16", 64, Pir62Crt, Q62Basis, 65536);
 
 pub type Lwe2048 = Lwe2048Q56P8;
 

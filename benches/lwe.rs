@@ -1,4 +1,6 @@
 use criterion::{measurement::Measurement, BatchSize, BenchmarkGroup, Criterion};
+use rand::{thread_rng, Rng};
+use rand_distr::{Distribution, Standard};
 use small_pir::{
     lwe::{
         BfvCiphertext, GswCiphertextNtt, Lwe1024Q30P8, Lwe1024Q31P8, Lwe1024Q32P8, Lwe2048Q56P8,
@@ -6,8 +8,6 @@ use small_pir::{
     },
     poly::Poly,
 };
-use rand::{thread_rng, Rng};
-use rand_distr::{Distribution, Standard};
 
 fn extprod_bench<L: LweParams, const D: usize, M: Measurement, R: Rng>(
     group: &mut BenchmarkGroup<M>,

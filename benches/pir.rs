@@ -1,11 +1,11 @@
 use criterion::{
     measurement::Measurement, BatchSize, BenchmarkGroup, BenchmarkId, Criterion, Throughput,
 };
+use rand::{thread_rng, Rng};
 use small_pir::{
     lwe::{BfvCiphertextNtt, Lwe1024Q30P8, Lwe1024Q31P8, Lwe1024Q32P8, Lwe2048Q56P8, LweParams},
     pir::PirBackend,
 };
-use rand::{thread_rng, Rng};
 
 const LEN: usize = 4096;
 

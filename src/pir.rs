@@ -514,7 +514,7 @@ mod tests {
             GswCiphertextCompressed, Lwe1024Q14P1, Lwe1024Q20P6, Lwe1024Q30P1, Lwe1024Q30P2,
             Lwe1024Q30P6, Lwe1024Q31P2, Lwe1024Q31P4, Lwe1024Q31P7, Lwe2048Q21P1, Lwe2048Q21P4,
             Lwe2048Q21P6, Lwe2048Q21P8, Lwe2048Q25P12, Lwe2048Q56P1, Lwe2048Q56P12, Lwe2048Q56P4,
-            Lwe2048Q56P6, Lwe2048Q56P8,
+            Lwe2048Q56P6, Lwe2048Q56P8, Lwe2048Q62P16, Lwe2048Q62P8,
         },
         pir::query::Query,
         Decompose,
@@ -957,8 +957,6 @@ mod tests {
         pir::<Lwe2048Q56P8, 2, 6, Lwe2048Q56P8>(DB_SIZE_2048, 1, 32, 4, None);
     }
 
-    /*
-     * These configs are broken because Q56 is hardcoded in `ResidueNtt`.
     #[test]
     fn q62_p8_a() {
         pir::<Lwe2048Q62P8, 3, 3, Lwe2048Q62P8>(DB_SIZE_2048, 1, 16, 4, None);
@@ -973,5 +971,4 @@ mod tests {
     fn q62_p16() {
         pir::<Lwe2048Q62P16, 5, 13, Lwe2048Q62P16>(DB_SIZE_2048, 1, 16, 2, None);
     }
-    */
 }

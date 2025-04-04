@@ -9,7 +9,7 @@ use crate::math::{inner_prod_31_avx512, mul_accum_hv_barrett_31_avx512};
 use crate::{
     lwe::{LweParams, LwePrivate},
     math::{u32x16, Simd},
-    poly::{Ntt, Plan, Poly, ResidueNtt},
+    poly::{Ntt, Plan, Poly, ResidueNtt, ResidueNttBasis},
 };
 
 #[allow(clippy::len_without_is_empty)]
@@ -241,16 +241,17 @@ impl<L: LweParams<Ntt = Ntt<L>>> PirBackend for PirGeneric<L> {
     }
 }
 
-pub struct Pir62Crt<L: LweParams, const Q0: u32, const Q1: u32> {
+pub struct Pir62Crt<L: LweParams, B: ResidueNttBasis, const Q0: u32, const Q1: u32> {
     db_a: Vec<u32x16>,
     db_b: Vec<u32x16>,
     query_len: usize,
-    phantom_data: PhantomData<L>,
+    phantom_data: PhantomData<(L, B)>,
 }
 
-impl<L, const Q0: u32, const Q1: u32> PirBackend for Pir62Crt<L, Q0, Q1>
+impl<L, B, const Q0: u32, const Q1: u32> PirBackend for Pir62Crt<L, B, Q0, Q1>
 where
-    L: LweParams<Storage = u64, Array = [u64; 2048], Ntt = ResidueNtt<L>>,
+    L: LweParams<Storage = u64, Array = [u64; 2048], Ntt = ResidueNtt<L, B>>,
+    B: ResidueNttBasis,
 {
     type LweParams = L;
 
@@ -262,15 +263,11 @@ where
             "query length should be a multiple of four"
         );
 
-        let mut src = src
-            .iter()
-            .cloned()
-            .map(ResidueNtt::from)
-            .collect::<Vec<_>>();
+        let mut src = src.iter().cloned().map(L::Ntt::from).collect::<Vec<_>>();
 
         // Pad the database to a multiple of the query length
         for _ in src.len()..src.len().next_multiple_of(query_len) {
-            src.push(ResidueNtt::default());
+            src.push(L::Ntt::default());
         }
 
         // Viewing the database as `D = size` rows by `W = WIDTH` columns, and denoting
@@ -388,16 +385,15 @@ where
         // `Pir::query`), but we have to do it here because we have visibility to
         // the concrete `Ntt` type here.
         for c in reduced_db.iter_mut() {
-            crate::poly::residue_ntt::PLAN0.normalize(c.as_raw_storage_mut()[0]); // TODO normalization hygiene
-            crate::poly::residue_ntt::PLAN1.normalize(c.as_raw_storage_mut()[1]);
-            // TODO normalization hygiene
+            B::plan0().normalize(c.as_raw_storage_mut()[0]); // TODO normalization hygiene
+            B::plan1().normalize(c.as_raw_storage_mut()[1]); // TODO normalization hygiene
         }
     }
 
     fn inner_prod<'a, const N: usize>(
-        lhs: &'a [ResidueNtt<L>; N],
-        rhs: &'a [ResidueNtt<L>; N],
-        result: &'a mut ResidueNtt<L>,
+        lhs: &'a [L::Ntt; N],
+        rhs: &'a [L::Ntt; N],
+        result: &'a mut L::Ntt,
     ) {
         const WIDTH: usize = 2048 / u32x16::DIM;
         const STRIDE: usize = 2 * WIDTH;
@@ -419,8 +415,7 @@ where
             #[cfg(target_feature = "avx512ifma")]
             inner_prod_31_avx512::<N, WIDTH, STRIDE, 128, Q1>(lhs_simd, rhs_simd, result_simd);
         }
-        crate::poly::residue_ntt::PLAN0.normalize(result.as_raw_storage_mut()[0]); // TODO normalization hygiene
-        crate::poly::residue_ntt::PLAN1.normalize(result.as_raw_storage_mut()[1]);
-        // TODO normalization hygiene
+        B::plan0().normalize(result.as_raw_storage_mut()[0]); // TODO normalization hygiene
+        B::plan1().normalize(result.as_raw_storage_mut()[1]); // TODO normalization hygiene
     }
 }
