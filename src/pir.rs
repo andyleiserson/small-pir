@@ -8,6 +8,7 @@ use std::{
 
 pub use backend::PirBackend;
 use bitvec::{
+    bitvec,
     field::BitField,
     order::{BitOrder, Lsb0},
     slice::BitSlice,
@@ -22,7 +23,7 @@ use rand_distr::{Distribution, Standard};
 
 use crate::{
     field::Field,
-    lwe::{BfvCiphertext, Compressor, Lwe, LweParams, LwePrivate},
+    lwe::{BfvCiphertext, BfvCiphertextNtt, Compressor, Lwe, LweParams, LwePrivate},
     pir::query::Query,
     poly::Poly,
     timer::Timer,
@@ -123,7 +124,6 @@ where
     }
 }
 
-#[expect(dead_code)]
 fn padded_chunks_exact<I: Iterator, F: Fn() -> I::Item>(
     iter: I,
     chunk_size: usize,
@@ -181,7 +181,7 @@ pub type Seed = <ChaCha12Rng as SeedableRng>::Seed;
 
 pub struct Pir<B: PirBackend, const ELL_GSW: usize, const ELL_KS: usize> {
     bfv_query_len: usize,
-    database: Vec<BitVec<u8, Lsb0>>,
+    database: Vec<Poly<B::LweParams>>,
     backend: B,
     compressor: Compressor,
     #[allow(dead_code)]
@@ -251,13 +251,15 @@ where
             .len()
             .div_ceil(B::LweParams::P_BITS * B::LweParams::DEGREE);
         let mut database = Vec::with_capacity(size);
-        let mut database_orig = Vec::with_capacity(size);
         let db_bits = db_bytes.view_bits::<Lsb0>();
-        for element in db_bits.padded_chunks_exact(B::LweParams::P_BITS * B::LweParams::DEGREE) {
-            database_orig.push(element.clone());
+        for element in padded_chunks_exact(
+            db_bits.padded_chunks_exact(B::LweParams::P_BITS),
+            B::LweParams::DEGREE,
+            || bitvec![u8, Lsb0; 0; B::LweParams::P_BITS],
+        ) {
             let poly: Poly<B::LweParams> = <B::LweParams as LwePrivate>::Array::try_from(
                 element
-                    .padded_chunks_exact(B::LweParams::P_BITS)
+                    .into_iter()
                     .map(|bits| bits.load_le::<<B::LweParams as LwePrivate>::Storage>())
                     .collect::<Vec<_>>(),
             )
@@ -288,13 +290,9 @@ where
             })
             .collect();
 
-        if !self::PRINT_NOISE {
-            bfv_c0_db_ntt.truncate(0);
-        }
-
         Self {
             bfv_query_len,
-            database: database_orig,
+            database,
             backend,
             compressor,
             bfv_c0_db_ntt,
@@ -316,23 +314,6 @@ impl<B: PirBackend, const ELL_GSW: usize, const ELL_KS: usize> Pir<B, ELL_GSW, E
 
     pub fn compressor(&self) -> &Compressor {
         &self.compressor
-    }
-
-    #[allow(dead_code)]
-    fn maybe_invert_plaintext(index: usize, plaintext: &Poly<B::LweParams>) -> Poly<B::LweParams> {
-        if index % 2 == 0 {
-            return plaintext.clone();
-        }
-
-        B::LweParams::array_from_fn(|i| {
-            let val = plaintext.as_raw_storage()[i];
-            if val != <B::LweParams as LwePrivate>::Storage::default() {
-                B::LweParams::P_MODULUS - val
-            } else {
-                val
-            }
-        })
-        .into()
     }
 
     pub fn query<R, LPrime>(
@@ -392,22 +373,23 @@ impl<B: PirBackend, const ELL_GSW: usize, const ELL_KS: usize> Pir<B, ELL_GSW, E
         self.backend.execute_bfv(&bfv_ntt, &mut bfv_c1_ntt);
         let bfv_query_duration = timer.report_and_reset("BFV query inverse NTT");
 
-        /*
         if PRINT_NOISE {
             let mut reduced_db_norm = <B::LweParams as LwePrivate>::Storage::default();
             for (i, (c0, c1)) in zip(&self.bfv_c0_db_ntt, &bfv_c1_ntt).enumerate() {
                 let index = i * bfv_ntt.len() + (query_index & (bfv_ntt.len() - 1));
                 if let Some(d) = self.database.get(index) {
-                    let pt = Self::maybe_invert_plaintext(index, d) * B::LweParams::field(B::LweParams::floor_q_div_p());
-                    let ct = BfvCiphertext::from(
-                        BfvCiphertextNtt::from_raw(c0.clone(), c1.clone())
-                    );
-                    reduced_db_norm = reduced_db_norm.max((lwe.raw_decrypt_bfv(ct) - pt).inf_norm());
+                    let pt = d.clone() * B::LweParams::field(B::LweParams::floor_q_div_p());
+                    let ct =
+                        BfvCiphertext::from(BfvCiphertextNtt::from_raw(c0.clone(), c1.clone()));
+                    reduced_db_norm =
+                        reduced_db_norm.max((lwe.raw_decrypt_bfv(ct) - pt).inf_norm());
                 }
             }
-            println!("BFV query output: log₂|ε| = {:.1}", ((<_ as TryInto<u64>>::try_into(reduced_db_norm).ok().unwrap() as f32).log2()));
+            println!(
+                "BFV query output: log₂|ε| = {:.1}",
+                ((<_ as TryInto<u64>>::try_into(reduced_db_norm).ok().unwrap() as f32).log2())
+            );
         }
-        */
 
         let first_gsw_input = zip(&self.bfv_c0_decompose, bfv_c1_ntt)
             .map(|(c0d, c1)| {
@@ -463,14 +445,15 @@ impl<B: PirBackend, const ELL_GSW: usize, const ELL_KS: usize> Pir<B, ELL_GSW, E
             reduced_db = reduced_db_next;
             gsw_index += 1;
 
-            /*
             if PRINT_NOISE {
                 let mut reduced_db_norm = <B::LweParams as LwePrivate>::Storage::default();
                 for (i, v) in reduced_db.iter().enumerate() {
                     let gsw_query_index = (query_index / bfv_ntt.len()) & ((1 << gsw_index) - 1);
-                    let db_index = i * (bfv_ntt.len() << gsw_index) + gsw_query_index * bfv_ntt.len() + (query_index & (bfv_ntt.len() - 1));
+                    let db_index = i * (bfv_ntt.len() << gsw_index)
+                        + gsw_query_index * bfv_ntt.len()
+                        + (query_index & (bfv_ntt.len() - 1));
                     if let Some(d) = self.database.get(db_index) {
-                        let pt = Self::maybe_invert_plaintext(db_index, d) * B::LweParams::field(B::LweParams::floor_q_div_p());
+                        let pt = d.clone() * B::LweParams::field(B::LweParams::floor_q_div_p());
                         let norm = (lwe.raw_decrypt_bfv(v.clone()) - pt).inf_norm();
                         reduced_db_norm = reduced_db_norm.max(norm);
                     }
@@ -481,7 +464,6 @@ impl<B: PirBackend, const ELL_GSW: usize, const ELL_KS: usize> Pir<B, ELL_GSW, E
                     ((<_ as TryInto<u64>>::try_into(reduced_db_norm).ok().unwrap() as f32).log2()),
                 );
             }
-            */
         }
 
         let gsw_query_duration = timer.end();
@@ -691,13 +673,10 @@ mod tests {
             total_time_detail.e2e_query_duration += t.e2e_query_duration - t.unpack_duration;
 
             let response = lwe.decrypt_bfv(result.answer);
-            //println!("{} {}", response.0.as_ref()[0], pir.database[query_index].0.as_ref()[0]);
-            //let expected = Pir::<L::PirBackend>::maybe_invert_plaintext(query_index, &pirs[i].database[query_index]);
             let expected = LPrime::array_from_fn(|j| {
-                pirs[i].database[query_index]
-                    .get(j * L::P_BITS..(j + 1) * L::P_BITS)
+                LPrime::Storage::try_from(pirs[i].database[query_index].as_raw_storage()[j])
+                    .ok()
                     .unwrap()
-                    .load_le()
             })
             .into();
             assert!(
