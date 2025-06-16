@@ -132,8 +132,6 @@ impl TryFrom<&[u32]> for u32x16 {
     }
 }
 
-// TODO: some of the additions in this file need to be changed to `wrapping_add`.
-
 #[inline(never)]
 pub fn accum_only(db: &[u32x8], _query: &u32x8, acc: &mut [u32x8]) {
     let mut tmp_acc = u32x8::default();
