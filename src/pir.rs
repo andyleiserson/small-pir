@@ -123,7 +123,7 @@ where
     }
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 fn padded_chunks_exact<I: Iterator, F: Fn() -> I::Item>(
     iter: I,
     chunk_size: usize,
@@ -647,7 +647,7 @@ mod tests {
 
         let mut query_gsw: Vec<GswCiphertextCompressed<_, ELL_GSW>> = Vec::new();
         if gsw_synth {
-            query_gsw.push(lwe.gsw_encrypt_minus_secret(&pirs[0].compressor));
+            query_gsw.push(lwe.gsw_encrypt_minus_secret_compressed(&pirs[0].compressor));
         } else {
             query_gsw.extend(gsw_bit_vec.into_iter().map(|bit| {
                 let gsw_val = if bit {

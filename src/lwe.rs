@@ -640,7 +640,11 @@ where
         self.morph_compressed(compressor, 2 * L::DEGREE / pack + 1)
     }
 
-    pub fn gsw_encrypt_minus_secret<const D: usize>(
+    pub fn gsw_encrypt_minus_secret<const D: usize>(&mut self) -> GswCiphertext<L, D> {
+        self.encrypt_gsw(-&self.secret)
+    }
+
+    pub fn gsw_encrypt_minus_secret_compressed<const D: usize>(
         &mut self,
         compressor: &Compressor,
     ) -> GswCiphertextCompressed<L, D> {

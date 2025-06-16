@@ -78,21 +78,6 @@ impl<L: LweParams, const D: usize> Query<L, D> {
 
             assert!(unpacked.len() >= (1 << bfv_bits) + gsw_bits * D);
 
-            /*
-            let mut synth_gsw_ciphertexts = Vec::with_capacity(gsw_bits);
-            for src_set in unpacked.split_off(unpacked.len() - gsw_bits * D).chunks(D) {
-                let (c00, c01): (Vec<_>, Vec<_>) = src_set.iter().map(|src| (&minus_s * src).into_raw()).unzip();
-                let (c10, c11): (Vec<_>, Vec<_>) = src_set.iter().map(|src| BfvCiphertextNtt::from(src.clone()).into_raw()).unzip();
-                synth_gsw_ciphertexts.push(
-                    GswCiphertextNtt::from_raw(
-                        c00.try_into().unwrap(),
-                        c01.try_into().unwrap(),
-                        c10.try_into().unwrap(),
-                        c11.try_into().unwrap(),
-                    )
-                );
-            }
-            */
             let synth_gsw_ciphertexts = unpacked[unpacked.len() - gsw_bits * D..]
                 .chunks(D)
                 .map(|src_set| gsw_synth(src_set, &minus_s))
@@ -258,7 +243,6 @@ where
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use rand::thread_rng;
@@ -280,8 +264,10 @@ mod tests {
         let mut lwe = LweParams::gen_noise(rng.clone());
 
         let basis: Box<[_; D]> = Field::<LweParams>::basis();
-        let synth_bfv_cts = basis.iter()
-            .map(|&g| lwe.encrypt_bfv_poly(Poly::from_scalar(g))).collect::<Vec<_>>();
+        let synth_bfv_cts = basis
+            .iter()
+            .map(|&g| lwe.encrypt_bfv_poly(Poly::from_scalar(g)))
+            .collect::<Vec<_>>();
         let gsw_minus_s = lwe.gsw_encrypt_minus_secret::<D>();
 
         let gsw_ct = gsw_synth(&synth_bfv_cts, &GswCiphertextNtt::from(gsw_minus_s));
@@ -298,4 +284,3 @@ mod tests {
         );
     }
 }
-*/
