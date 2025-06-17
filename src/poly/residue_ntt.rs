@@ -13,7 +13,7 @@ use crate::{
     field::Field,
     lwe::LwePrivate,
     pir::PirBackend,
-    poly::{NttTrait, Poly},
+    poly::{NttTrait, Plan, Poly},
     InnerProduct,
 };
 
@@ -135,11 +135,10 @@ impl<L: ResidueLwe<Self>, B: Basis> From<Poly<L>> for ResidueNtt<L, B> {
     }
 }
 
-// TODO normalization hygiene: this is only correct if the source `Ntt` has been
-// normalized. A round trip using `Poly::from(Ntt::from(poly))` is not correct, which
-// is bad.
 impl<L: ResidueLwe<ResidueNtt<L, B>>, B: Basis> From<ResidueNtt<L, B>> for Poly<L> {
     fn from(mut value: ResidueNtt<L, B>) -> Self {
+        B::plan0().normalize(&mut value.0);
+        B::plan1().normalize(&mut value.1);
         B::plan0().inv(&mut value.0);
         B::plan1().inv(&mut value.1);
         Self(L::array_from_fn(|i| {
@@ -257,8 +256,8 @@ impl<L: ResidueLwe<Self>, B: Basis> Mul<Self> for ResidueNtt<L, B> {
     type Output = Self;
 
     fn mul(self, mut rhs: Self) -> Self::Output {
-        B::plan0().mul_assign_normalize(rhs.0.as_mut(), self.0.as_ref());
-        B::plan1().mul_assign_normalize(rhs.1.as_mut(), self.1.as_ref());
+        B::plan0().mul_assign(&mut rhs.0, &self.0, &mut [0; 2048]);
+        B::plan1().mul_assign(&mut rhs.1, &self.1, &mut [0; 2048]);
         rhs
     }
 }
@@ -307,7 +306,7 @@ mod tests {
         assert_eq!(one_ntt.as_raw_storage()[1], &[1; 2048]);
 
         let one_poly = Poly::from(one_ntt);
-        assert_eq!(one_poly.as_raw_storage()[0], 2048); // TODO: normalization hygiene
+        assert_eq!(one_poly.as_raw_storage()[0], 1);
         assert_eq!(&one_poly.as_raw_storage()[1..], &[0; 2047]);
 
         let mut rng = thread_rng();
@@ -325,8 +324,8 @@ mod tests {
         let rand_scalar_poly = Poly::from(rand_scalar_ntt);
         assert_eq!(
             rand_scalar_poly.as_raw_storage()[0],
-            (Field::<Lwe>::new(rand_scalar) * Field::new(2048)).to_raw()
-        ); // TODO: normalization hygiene
+            Field::<Lwe>::new(rand_scalar).to_raw()
+        );
         assert_eq!(&rand_scalar_poly.as_raw_storage()[1..], &[0; 2047]);
 
         let mut rng = thread_rng();
@@ -335,12 +334,9 @@ mod tests {
         let rand_poly = Poly::from(rand_ntt);
         assert_eq!(
             rand_poly.as_raw_storage()[0],
-            (rand.clone() * Field::new(2048)).as_raw_storage()[0]
-        ); // TODO: normalization hygiene
-        assert_eq!(
-            rand_poly.as_raw_storage(),
-            (rand * Field::new(2048)).as_raw_storage()
-        ); // TODO: normalization hygiene
+            rand.clone().as_raw_storage()[0]
+        );
+        assert_eq!(rand_poly.as_raw_storage(), rand.as_raw_storage());
     }
 
     fn test_decomposition<const D: usize>(input: Poly<Lwe>) {

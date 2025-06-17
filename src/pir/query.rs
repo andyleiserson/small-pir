@@ -10,7 +10,7 @@ use crate::{
         GswCiphertextCompressed, GswCiphertextNtt, Lwe, LweParams,
     },
     morph::{unpack_all, EncryptedMorphCompressed},
-    poly::{NttTrait, Poly},
+    poly::Poly,
 };
 
 pub struct Query<L: LweParams, const D: usize> {
@@ -36,17 +36,7 @@ fn gsw_synth<L: LweParams, const D: usize>(
     elts: &[BfvCiphertext<L>],
     minus_s: &GswCiphertextNtt<L, D>,
 ) -> GswCiphertextNtt<L, D> {
-    // TODO normalization hygiene (when am I just going to fix this?)
-    let (c00, c01): (Vec<_>, Vec<_>) = elts
-        .iter()
-        .map(|elt| {
-            let (a, b) = (minus_s * elt).into_raw();
-            (
-                a * L::Ntt::from_scalar(L::field(L::Storage::from(1 << 22))),
-                b * L::Ntt::from_scalar(L::field(L::Storage::from(1 << 22))),
-            )
-        })
-        .unzip();
+    let (c00, c01): (Vec<_>, Vec<_>) = elts.iter().map(|elt| (minus_s * elt).into_raw()).unzip();
     let (c10, c11): (Vec<_>, Vec<_>) = elts
         .iter()
         .map(|elt| BfvCiphertextNtt::from(elt.clone()).into_raw())

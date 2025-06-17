@@ -15,7 +15,12 @@ pub trait Plan: 'static {
     fn fwd(&self, buf: &mut [Self::Storage]);
     fn inv(&self, buf: &mut [Self::Storage]);
 
-    fn mul_assign_normalize(&self, lhs: &mut [Self::Storage], rhs: &[Self::Storage]);
+    fn mul_assign(
+        &self,
+        lhs: &mut [Self::Storage],
+        rhs: &[Self::Storage],
+        tmp: &mut [Self::Storage],
+    );
     fn mul_accumulate(
         &self,
         acc: &mut [Self::Storage],
@@ -33,17 +38,22 @@ macro_rules! plan_trait_impl {
         impl Plan for $plan {
             type Storage = $integer;
 
+            fn mul_assign(
+                &self,
+                lhs: &mut [Self::Storage],
+                rhs: &[Self::Storage],
+                tmp: &mut [Self::Storage],
+            ) {
+                <$plan>::mul_accumulate(self, tmp, lhs, rhs);
+                lhs.copy_from_slice(tmp);
+            }
+
             delegate! {
                 #[through($plan)]
                 to self {
                     fn fwd(&self, buf: &mut [Self::Storage]);
                     fn inv(&self, buf: &mut [Self::Storage]);
 
-                    fn mul_assign_normalize(
-                        &self,
-                        lhs: &mut [Self::Storage],
-                        rhs: &[Self::Storage],
-                    );
                     fn mul_accumulate(
                         &self,
                         acc: &mut [Self::Storage],
@@ -447,11 +457,9 @@ impl<L: LwePrivate> From<Poly<L>> for Ntt<L> {
     }
 }
 
-// TODO normalization hygiene: this is only correct if the source `Ntt` has been
-// normalized. A round trip using `Poly::from(Ntt::from(poly))` is not correct, which
-// is bad.
 impl<L: LwePrivate> From<Ntt<L>> for Poly<L> {
     fn from(mut value: Ntt<L>) -> Self {
+        L::plan().normalize(value.0.as_mut());
         L::plan().inv(value.0.as_mut());
         Self(value.0)
     }
@@ -461,7 +469,7 @@ impl<L: LwePrivate> Mul<Self> for Ntt<L> {
     type Output = Self;
 
     fn mul(self, mut rhs: Self) -> Self::Output {
-        L::plan().mul_assign_normalize(rhs.0.as_mut(), self.0.as_ref());
+        L::plan().mul_assign(rhs.0.as_mut(), self.0.as_ref(), L::array_zero().as_mut());
         Self(rhs.0)
     }
 }
@@ -471,7 +479,7 @@ impl<L: LwePrivate> Mul<Poly<L>> for Ntt<L> {
 
     fn mul(self, mut rhs: Poly<L>) -> Self::Output {
         L::plan().fwd(rhs.0.as_mut());
-        L::plan().mul_assign_normalize(rhs.0.as_mut(), self.0.as_ref());
+        L::plan().mul_assign(rhs.0.as_mut(), self.0.as_ref(), L::array_zero().as_mut());
         Self(rhs.0)
     }
 }

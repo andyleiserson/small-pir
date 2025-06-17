@@ -458,7 +458,7 @@ pub fn inner_prod_31<
     //const WIDTH: usize = 1024 / u32x16::DIM;
     assert_eq!(lhs.len(), N * STRIDE, "incorrect lhs length");
     assert_eq!(rhs.len(), N * STRIDE, "incorrect rhs length");
-    let p_barrett = ((1u128 << 65) / Q as u128) as u64;
+    let p_barrett = ((1u128 << (2 * Q.next_power_of_two().ilog2() + 3)) / Q as u128) as u64;
     for i in 0..WIDTH {
         let mut acc_tmp: [u64; u32x16::DIM] = <_>::default();
         for j in 0..N {
@@ -469,8 +469,9 @@ pub fn inner_prod_31<
             if j % 4 == (N - 1) % 4 {
                 for k in 0..u32x16::DIM {
                     let tmp_lo = (acc_tmp[k] & 0xffff_ffff) as u32;
-                    let tmp_hi = acc_tmp[k] >> 29;
-                    let c = ((u128::from(tmp_hi) * u128::from(p_barrett)) >> 36) as u32;
+                    let tmp_hi = acc_tmp[k] >> (Q.next_power_of_two().ilog2() - 2);
+                    let c = ((u128::from(tmp_hi) * u128::from(p_barrett))
+                        >> (Q.next_power_of_two().ilog2() + 5)) as u32;
                     let c_times_big_q = c.wrapping_mul(Q);
                     let q = tmp_lo.wrapping_sub(c_times_big_q);
                     acc_tmp[k] = u64::from(if q >= Q { q - Q } else { q });

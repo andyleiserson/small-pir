@@ -146,13 +146,6 @@ where
                 }
             }
         }
-
-        // It would be better to do this in the same pass as the inverse NTT (in
-        // `Pir::query`), but we have to do it here because we have visibility to
-        // the concrete `Ntt` type here.
-        for c in reduced_db.iter_mut() {
-            L::plan().normalize(c.as_raw_storage_mut());
-        }
     }
 
     fn inner_prod<'a, const N: usize>(
@@ -175,7 +168,6 @@ where
             #[cfg(target_feature = "avx512ifma")]
             inner_prod_31_avx512::<N, 64, 64, 0, Q>(lhs_simd, rhs_simd, result_simd);
         }
-        L::plan().normalize(result.as_raw_storage_mut()); // TODO normalization hygiene
     }
 }
 
@@ -218,13 +210,6 @@ impl<L: LweParams<Ntt = Ntt<L>>> PirBackend for PirGeneric<L> {
                 db.as_raw_storage(),
                 q.as_raw_storage(),
             );
-        }
-
-        // It would be better to do this in the same pass as the inverse NTT (in
-        // `Pir::query`), but we have to do it here because we have visibility to
-        // the concrete `Ntt` type here.
-        for c in reduced_db.iter_mut() {
-            L::plan().normalize(c.as_raw_storage_mut());
         }
     }
 
@@ -380,14 +365,6 @@ where
                 }
             }
         }
-
-        // It would be better to do this in the same pass as the inverse NTT (in
-        // `Pir::query`), but we have to do it here because we have visibility to
-        // the concrete `Ntt` type here.
-        for c in reduced_db.iter_mut() {
-            B::plan0().normalize(c.as_raw_storage_mut()[0]); // TODO normalization hygiene
-            B::plan1().normalize(c.as_raw_storage_mut()[1]); // TODO normalization hygiene
-        }
     }
 
     fn inner_prod<'a, const N: usize>(
@@ -415,7 +392,5 @@ where
             #[cfg(target_feature = "avx512ifma")]
             inner_prod_31_avx512::<N, WIDTH, STRIDE, 128, Q1>(lhs_simd, rhs_simd, result_simd);
         }
-        B::plan0().normalize(result.as_raw_storage_mut()[0]); // TODO normalization hygiene
-        B::plan1().normalize(result.as_raw_storage_mut()[1]); // TODO normalization hygiene
     }
 }

@@ -973,7 +973,9 @@ impl<L: LweParams, const D: usize> Mul<&BfvCiphertext<L>> for &GswCiphertextNtt<
     }
 }
 
-/// BFV-RGSW external product
+/// Special BFV-RGSW external product for the first GSW reduction.
+///
+/// Requires that the input was decomposed before NTT.
 impl<L: LweParams, const D: usize> Mul<(&[L::Ntt; D], &[L::Ntt; D])> for &GswCiphertextNtt<L, D> {
     type Output = BfvCiphertextNtt<L>;
 
@@ -1046,7 +1048,9 @@ impl<L: LweParams, const D: usize> Mul<&BfvCiphertext<L>> for OneMinus<&GswCiphe
     }
 }
 
-/// BFV-RGSW external product. In this version the
+/// Special BFV-RGSW external product for the first GSW reduction.
+///
+/// Requires that the input was decomposed before NTT.
 impl<L: LweParams, const D: usize> Mul<(&[L::Ntt; D], &[L::Ntt; D])>
     for OneMinus<&GswCiphertextNtt<L, D>>
 {

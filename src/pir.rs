@@ -23,7 +23,7 @@ use rand_distr::{Distribution, Standard};
 
 use crate::{
     field::Field,
-    lwe::{BfvCiphertext, BfvCiphertextNtt, Compressor, Lwe, LweParams, LwePrivate},
+    lwe::{BfvCiphertext, BfvCiphertextNtt, Compressor, GswCiphertext, Lwe, LweParams, LwePrivate},
     pir::query::Query,
     poly::Poly,
     timer::Timer,
@@ -355,6 +355,15 @@ impl<B: PirBackend, const ELL_GSW: usize, const ELL_KS: usize> Pir<B, ELL_GSW, E
                     ((<_ as TryInto<u64>>::try_into(norm).ok().unwrap() as f32).log2())
                 );
             }
+
+            for (i, c) in gsw_ciphertexts.iter().enumerate() {
+                let pt = GswCiphertext::from(c.clone());
+                let norm = lwe.decrypt_gsw(pt.clone()).inf_norm();
+                println!(
+                    "GSW query {i}: log₂|ε| = {:.1}",
+                    ((<_ as TryInto<u64>>::try_into(norm).ok().unwrap() as f32).log2()),
+                );
+            }
         }
 
         timer.report_and_reset("NTT of query");
@@ -426,6 +435,35 @@ impl<B: PirBackend, const ELL_GSW: usize, const ELL_KS: usize> Pir<B, ELL_GSW, E
 
         gsw_index += 1;
 
+        if PRINT_NOISE {
+            let mut reduced_db_norm = <B::LweParams as LwePrivate>::Storage::default();
+            for (i, v) in reduced_db.iter().enumerate() {
+                let gsw_query_index = (query_index / bfv_ntt.len()) & ((1 << gsw_index) - 1);
+                let db_index = i * (bfv_ntt.len() << gsw_index)
+                    + gsw_query_index * bfv_ntt.len()
+                    + (query_index & (bfv_ntt.len() - 1));
+                if let Some(d) = self.database.get(db_index) {
+                    let pt = d.clone() * B::LweParams::field(B::LweParams::floor_q_div_p());
+                    let dec = lwe.raw_decrypt_bfv(v.clone());
+                    let diff = dec.clone() - pt.clone();
+                    println!("{:x} {:x}", pt.as_raw_storage()[0], dec.as_raw_storage()[0]);
+                    let norm = diff.inf_norm();
+                    println!(
+                        "GSW query {} db[{}]: log₂|ε| = {:.1}",
+                        gsw_index - 1,
+                        i,
+                        ((<_ as TryInto<u64>>::try_into(norm).ok().unwrap() as f32).log2()),
+                    );
+                    reduced_db_norm = reduced_db_norm.max(norm);
+                }
+            }
+            println!(
+                "GSW query {} output: log₂|ε| = {:.1}",
+                gsw_index - 1,
+                ((<_ as TryInto<u64>>::try_into(reduced_db_norm).ok().unwrap() as f32).log2()),
+            );
+        }
+
         while reduced_db.len() > 1 {
             let mut reduced_db_next = Vec::with_capacity(reduced_db.len().div_ceil(2));
             for chunk in reduced_db.chunks(2) {
@@ -455,6 +493,12 @@ impl<B: PirBackend, const ELL_GSW: usize, const ELL_KS: usize> Pir<B, ELL_GSW, E
                     if let Some(d) = self.database.get(db_index) {
                         let pt = d.clone() * B::LweParams::field(B::LweParams::floor_q_div_p());
                         let norm = (lwe.raw_decrypt_bfv(v.clone()) - pt).inf_norm();
+                        println!(
+                            "GSW query {} db[{}]: log₂|ε| = {:.1}",
+                            gsw_index - 1,
+                            i,
+                            ((<_ as TryInto<u64>>::try_into(norm).ok().unwrap() as f32).log2()),
+                        );
                         reduced_db_norm = reduced_db_norm.max(norm);
                     }
                 }
