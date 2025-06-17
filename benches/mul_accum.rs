@@ -17,9 +17,11 @@ use small_pir::{
     math::{
         accum_only, accum_only_unrolled, mul_accum_horiz_barrett, mul_accum_horiz_deferred,
         mul_accum_horiz_division, mul_accum_horiz_noreduce, mul_accum_hv_barrett_31,
-        mul_accum_vert_barrett, mul_accum_vert_division, mul_accum_vert_noreduce, u32x8, Simd, Q,
+        mul_accum_vert_barrett, mul_accum_vert_division, mul_accum_vert_noreduce, u32x8, Simd,
     },
 };
+
+const Q: u32 = 0x7fff_d801;
 
 const N_SMALL: usize = 16 * 1024 / size_of::<u32>();
 const N_MEDIUM: usize = 1024 * 1024 / size_of::<u32>();
@@ -146,10 +148,10 @@ fn vert_group(criterion: &mut Criterion, name: &str, len: usize, sample_size: us
         mul_accum_vert_noreduce_asm(d, q, a)
     });
     bench_vert::<_, _, _>(&mut group, "division", len, |(d, q, a)| {
-        mul_accum_vert_division(d, q, a)
+        mul_accum_vert_division::<Q>(d, q, a)
     });
     bench_vert::<_, _, _>(&mut group, "barrett", len, |(d, q, a)| {
-        mul_accum_vert_barrett(d, q, a)
+        mul_accum_vert_barrett::<Q>(d, q, a)
     });
     #[cfg(target_feature = "avx2")]
     bench_vert::<_, _, _>(&mut group, "barrett_asm", len, |(d, q, a)| {
@@ -177,13 +179,13 @@ fn horiz_group(criterion: &mut Criterion, name: &str, len: usize, sample_size: u
         mul_accum_horiz_noreduce_asm(d, q, a)
     });
     bench_horiz::<_, _, _>(&mut group, "division", len, |(d, q, a)| {
-        mul_accum_horiz_division(d, q, a)
+        mul_accum_horiz_division::<Q>(d, q, a)
     });
     bench_horiz::<_, _, _>(&mut group, "barrett", len, |(d, q, a)| {
-        mul_accum_horiz_barrett(d, q, a)
+        mul_accum_horiz_barrett::<Q>(d, q, a)
     });
     bench_horiz::<_, _, _>(&mut group, "deferred", len, |(d, q, a)| {
-        mul_accum_horiz_deferred(d, q, a)
+        mul_accum_horiz_deferred::<Q>(d, q, a)
     });
     #[cfg(target_feature = "avx2")]
     bench_horiz::<_, _, _>(&mut group, "deferred_avx2", len, |(d, q, a)| {
