@@ -14,3 +14,22 @@ includes a [parameter search script](./tools/params.py).
 
 This code has not been subject to review or audit, and any use is at your
 own risk.
+
+## Usage
+
+Running the tests with a release build is recommended. The tests are slow and
+have a tendency to overflow the stack in debug mode.
+
+To build and run the unit tests:
+
+```
+cargo test --release
+```
+
+To build and run one of the benchmark configurations:
+
+```
+cargo test --release -- --nocapture --include-ignored final_256mb_q56_compute
+```
+
+The configurations can be found in `src/pir.rs` or in `bench.sh`.
