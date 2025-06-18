@@ -22,5 +22,5 @@ configs=(
 #    final_1gb_q56_t_comm
 
 for config in ${configs[@]}; do
-    cargo test --release -- --nocapture $config >& $config.out
+    cargo test --release -- --nocapture --include-ignored $config >& $config.out
 done

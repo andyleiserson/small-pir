@@ -1061,7 +1061,7 @@ mod tests {
     #[cfg(target_feature = "avx2")]
     #[test]
     fn test_mul_accum_horiz_deferred_avx2() {
-        test_mul_accum_horiz(mul_accum_horiz_deferred_avx2);
+        test_mul_accum_horiz(mul_accum_horiz_deferred_avx2::<Q>);
     }
 
     fn test_inner_prod<

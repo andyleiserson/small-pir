@@ -1,4 +1,3 @@
-#![cfg_attr(target_feature = "avx512f", feature(stdarch_x86_avx512))]
 #![feature(array_chunks)]
 
 pub mod field;
